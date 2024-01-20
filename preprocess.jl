@@ -1,66 +1,77 @@
 using Plots
 
-function read_mesh(file_name::AbstractString, element_type)
+# if tokens[1] == "*NODE"
+#     scenario = 1
+#     continue
+# end
+
+# if tokens[1] == "*ELEMENT"
+#     scenario = 2
+#     continue
+# end
+
+function read_mesh(file_name::AbstractString)
     x_coords = Float64[]
     y_coords = Float64[]
     z_coords = Float64[]
     elems = Vector{Vector{Int}}()
+    # scenario 0 -> header
+    # scenario 1 -> nodes
+    # scenario 2 -> elements
+    scenario = 0
+    
+    open(file_name) do f
+        for line in eachline(f)
+            # if startswith(line, '*')
+            #     continue
+            # end
+            tokens = split(strip(line), ',')
 
-    if element_type == 1
-        open(file_name) do f
-            for line in eachline(f)
-                if startswith(line, '*')
-                    continue
-                end
-
-                tokens = split(strip(line), ',')
-                if length(tokens) == 5
-                    elem_id, node_ids... = tokens
-                    push!(elems, [parse(Int, n) for n in node_ids])
-                elseif length(tokens) == 4
-                    node_id, x, y, z = tokens
-                    push!(x_coords, parse(Float64, x))
-                    push!(y_coords, parse(Float64, y))
-                    push!(z_coords, parse(Float64, z))
-                end
+            if tokens[1] == "*NODE"
+                scenario = 1
+                continue
             end
-        end
-    elseif element_type == 2
-        open(file_name) do f
-            is_elem_connectivity = 0
-            for line in eachline(f)
-                if startswith(line, '*')
-                    continue
-                end
 
-                tokens = split(strip(line), ',')
-                if is_elem_connectivity == 0
-                    if length(tokens) == 4
-                        node_id, x, y, z = tokens
-                        push!(x_coords, parse(Float64, x))
-                        push!(y_coords, parse(Float64, y))
-                        push!(z_coords, parse(Float64, z))
-                        if node_id == 1
-                            is_elem_connectivity += 1
-                        end
-                    end
-                end
+            if tokens[1] == "*ELEMENT"
+                scenario = 2
+                continue
             end
+
+            if tokens[1] == "*END STEP"
+                scenario = 0
+            end
+
+            if scenario == 0
+                continue
+            end
+
+            if scenario == 1
+                node_id, x, y, z = tokens
+                push!(x_coords, parse(Float64, x))
+                push!(y_coords, parse(Float64, y))
+                push!(z_coords, parse(Float64, z))
+            end
+
+            if scenario == 2
+                elem_id, node_ids... = tokens
+                push!(elems, [parse(Int, n) for n in node_ids])
+            end     
+
         end
     end
 
-    return ( x_coords, y_coords, z_coords, elems)
+    return (x_coords, y_coords, z_coords, elems)
+
 end
 
 #using read_mesh function to create 4 variables that contain all x-coordinates in mesh, all y-coordinates in mesh,
 #all z-coordinates in mesh, and global nodal coordinates
 
-#if you want to change the mesh file used -----> adjust mesh_information variable
-#element type must be defined for mesh_information -----> 1 is for square elements
-
 #jl_preprocessing_ex.inp
 
-mesh_information = read_mesh("julia_sample_mesh.inp", 1)
+mesh_information = read_mesh("julia_sample_mesh.inp")
+
+println
 
 node_ids = 1:length(mesh_information[1])
 
