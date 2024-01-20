@@ -67,17 +67,17 @@ end
 
 fixed_concentration_top = boundary_condition(1, top_face_nodes)
 
-partitioned_stiffness_matrix = partitioned_stiffness_matrix_function(stiffness_matrix, fixed_concentration_top)
+# partitioned_stiffness_matrix = partitioned_stiffness_matrix_function(stiffness_matrix, fixed_concentration_top)
 
-partitioned_mass_matrix = partitioned_mass_matrix_function(mass_matrix, fixed_concentration_top)
+# partitioned_mass_matrix = partitioned_mass_matrix_function(mass_matrix, fixed_concentration_top)
 
 partitioned_boundary_condition = partitioned_boundary_condition_function(stiffness_matrix, fixed_concentration_top)
 
-println("the partitioned stiffness matrix size is: ", size(partitioned_stiffness_matrix))
+# println("the partitioned stiffness matrix size is: ", size(partitioned_stiffness_matrix))
 
-println("the partitioned mass matrix size is: ", size(partitioned_mass_matrix))
+# println("the partitioned mass matrix size is: ", size(partitioned_mass_matrix))
 
-println("the partitioned essential boundary condition size is: ", size(partitioned_boundary_condition))
+# println("the partitioned essential boundary condition size is: ", size(partitioned_boundary_condition))
 
 #initialization of stuff
 
@@ -90,36 +90,50 @@ flux_vector = spzeros(size(partitioned_boundary_condition)[1], 1)
 #flux_vector =  zeros(total_degrees_of_freedom, 1)
 
 #total time in seconds
-time_end = 10
+time_end = 40
 
-time_span = 1:time_end
+global time_step = 1
 
+global time = 0
 
-for time in time_span
+while time_end > time
 
     println("the time is: ", time)
 
-    #enforce b.c.
-
-    #global concentration_vector[convert(Array{Int,1}, fixed_concentration_top[:, 1]), :] = fixed_concentration_top[:, 2]
-
     global old_concentration_vector = concentration_vector
 
-    global stiffness_matrix = stiffness_matrix + mass_matrix 
+    local stiffness_matrix, mass_matrix = stiffness_and_mass_matrix_2D("quad4", element_connectivity, nodal_coordinates, 0.001, 0.01, 0.99, time_step)
 
-    global partitioned_stiffness_matrix = partitioned_stiffness_matrix_function(stiffness_matrix, fixed_concentration_top)
+    #is creating an external flux vector necessary for this problem?
 
-    global partitioned_boundary_condition = partitioned_boundary_condition_function(stiffness_matrix, fixed_concentration_top)
+    local stiffness_matrix = stiffness_matrix + mass_matrix
+
+    local partitioned_stiffness_matrix = partitioned_stiffness_matrix_function(stiffness_matrix, fixed_concentration_top)
+
+    local partitioned_mass_matrix = partitioned_mass_matrix_function(mass_matrix, fixed_concentration_top)
+
+    local partitioned_boundary_condition = partitioned_boundary_condition_function(stiffness_matrix, fixed_concentration_top)
+
+    # assumption - there is no external flux vector --> set initial flux to zero?
+
+    global flux_vector = spzeros(size(partitioned_boundary_condition)[1], 1)
 
     global flux_vector = flux_vector + partitioned_mass_matrix * old_concentration_vector - partitioned_boundary_condition
 
     global concentration_vector = partitioned_stiffness_matrix \ flux_vector
 
-    residual = flux_vector - partitioned_stiffness_matrix * concentration_vector
+    local residual = flux_vector - partitioned_stiffness_matrix * concentration_vector
 
-    println("the residual is: ", sum(residual))
+    global time = time + time_step
+
+    println("concentration is:")
 
     println(concentration_vector)
 
+    println("flux is:")
+
+    println(flux_vector)
+
+    println("the residual is: ", sum(residual))
 
 end
