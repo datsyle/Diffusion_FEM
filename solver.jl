@@ -18,6 +18,18 @@ function boundary_condition(concentration, affected_nodes)
 
 end
 
+function free_nodes_function(boundary_condition , total_number_of_nodes)
+
+    list_of_all_nodes = 1 : total_number_of_nodes
+
+    rows_to_delete = convert(Array{Int,1}, boundary_condition[: , 1])
+
+    free_nodes = setdiff(list_of_all_nodes , rows_to_delete)
+
+    return free_nodes
+
+end
+
 #boundary_condition function output looks like the following:
 #    node ids affected by fixed concentration   |   fixed concentration value
 
@@ -67,6 +79,8 @@ end
 
 fixed_concentration_top = boundary_condition(1, top_face_nodes)
 
+free_nodes = free_nodes_function(fixed_concentration_top , total_degrees_of_freedom)
+
 # partitioned_stiffness_matrix = partitioned_stiffness_matrix_function(stiffness_matrix, fixed_concentration_top)
 
 # partitioned_mass_matrix = partitioned_mass_matrix_function(mass_matrix, fixed_concentration_top)
@@ -81,7 +95,7 @@ partitioned_boundary_condition = partitioned_boundary_condition_function(stiffne
 
 #initialization of stuff
 
-concentration_vector = spzeros(size(partitioned_boundary_condition)[1], 1)
+partitioned_concentration_vector = spzeros(size(partitioned_boundary_condition)[1], 1)
 
 #concentration_vector = zeros(total_degrees_of_freedom, 1)
 
@@ -96,11 +110,21 @@ global time_step = 1
 
 global time = 0
 
+#storing solutions
+
+# note ÷ is integer division
+
+global concentration_solution = spzeros(total_degrees_of_freedom, ÷(time_end, time_step))
+
+# ^ is it better to use spzeros for this or zeros? the entire matrix is going to be filled with the concentration values per time step...
+
+println(size(concentration_solution))
+
 while time_end > time
 
     println("the time is: ", time)
 
-    global old_concentration_vector = concentration_vector
+    global old_concentration_vector = partitioned_concentration_vector
 
     local stiffness_matrix, mass_matrix = stiffness_and_mass_matrix_2D("quad4", element_connectivity, nodal_coordinates, 0.001, 0.01, 0.99, time_step)
 
@@ -120,15 +144,23 @@ while time_end > time
 
     global flux_vector = flux_vector + partitioned_mass_matrix * old_concentration_vector - partitioned_boundary_condition
 
-    global concentration_vector = partitioned_stiffness_matrix \ flux_vector
+    global partitioned_concentration_vector = partitioned_stiffness_matrix \ flux_vector
 
-    local residual = flux_vector - partitioned_stiffness_matrix * concentration_vector
+    local residual = flux_vector - partitioned_stiffness_matrix * partitioned_concentration_vector
 
     global time = time + time_step
 
+    # placing fixed concentration values in end solution matrix w/ rows = concentration & columns = times
+
+    global concentration_solution[ convert(Array{Int,1}, fixed_concentration_top[: , 1] ) , time ] = fixed_concentration_top[: , 2]
+
+    # placing unknown concentration values in end solution matrix 
+
+    global concentration_solution[ free_nodes , time ] = partitioned_concentration_vector
+
     println("concentration is:")
 
-    println(concentration_vector)
+    println(partitioned_concentration_vector)
 
     println("flux is:")
 
